@@ -68,7 +68,7 @@ func getEchoSvr(ctx context.Context, wg *sync.WaitGroup) func() error {
 		})
 		server := &http.Server{Addr: ":8002", Handler: mux}
 
-		errChan := make(chan error)
+		errChan := make(chan error, 1)
 		go func() {
 			<-ctx.Done()
 			shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -104,7 +104,7 @@ func getSleepSvr(ctx context.Context, wg *sync.WaitGroup) func() error {
 		})
 		server := &http.Server{Addr: ":8000", Handler: mux}
 		// 如果是超时强制停止服务器，也就是有未完成的在途请求，就向上返回这个错误信息
-		errChan := make(chan error)
+		errChan := make(chan error, 1)
 		go func() {
 			<-ctx.Done()
 			shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
