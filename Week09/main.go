@@ -24,22 +24,19 @@ type Server struct {
 }
 
 func main() {
-	var (
-		address string
-		file    string
-	)
+
+	var addr = flag.String("addr", "127.0.0.1:8000", "listening address of the TCP server")
+	var file = flag.String("file", "temp.txt", "file to write")
 
 	log.SetFlags(log.Llongfile)
 
-	flag.StringVar(&address, "l", "127.0.0.1:8000", "listening address of the TCP server")
-	flag.StringVar(&file, "f", "temp.txt", "file to write")
 	flag.Parse()
 
 	// 接收信号，触发 server 正确退出。
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
-	s := NewServer(address, file)
+	s := NewServer(*addr, *file)
 	go s.Stop(term)
 	s.Serv()
 }
