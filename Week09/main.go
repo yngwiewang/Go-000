@@ -1,5 +1,6 @@
 // Week09 实现一个tcp server ，用两个 goroutine 读写 conn，
 // 两个 goroutine 通过 chan 可以传递 message，能够正确退出。
+// 客户端为 telnet，正常触发关闭会断开已存在的连接并完成写入后退出。
 package main
 
 import (
@@ -39,11 +40,7 @@ func main() {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	s := NewServer(address, file)
-	go func() {
-		<-term
-		s.Stop()
-	}()
-
+	go s.Stop(term)
 	s.Serv()
 }
 
@@ -66,15 +63,14 @@ func NewServer(address, file string) *Server {
 	return s
 }
 
-// 停止 server，等待在途的 goroutine 执行完毕，关闭 channel。
-func (s *Server) Stop() {
+// 停止监听。
+func (s *Server) Stop(term <-chan os.Signal) {
+	<-term
 	close(s.quit)
 	s.listener.Close()
-	s.wg.Wait()
-	close(s.message)
 }
 
-// 启动服务，如果是正常关闭触发的监听关闭就返回。
+// 启动服务，如果是正常触发的监听关闭就终止已监听的连接并处理完写入后返回。
 func (s *Server) Serv() {
 	s.wg.Add(1)
 	go s.writeContent()
@@ -86,19 +82,20 @@ func (s *Server) Serv() {
 			select {
 			case <-s.quit:
 				log.Println("closing server gracefully...")
+				close(s.message)
+				s.wg.Wait()
+				log.Println("server closed, byebye.")
 				return
 			default:
 				log.Printf("accept err: %s", err.Error())
 				continue
 			}
 		}
-		s.wg.Add(1)
 		go s.readConn(conn)
 	}
 }
 
 func (s *Server) readConn(conn net.Conn) {
-	defer s.wg.Done()
 	defer conn.Close()
 
 	buf := bufio.NewReader(conn)
@@ -117,6 +114,9 @@ func (s *Server) readConn(conn net.Conn) {
 func (s *Server) writeContent() {
 	defer s.wg.Done()
 	defer s.file.Close()
+	defer func() {
+		log.Println("finished writing.")
+	}()
 	for content := range s.message {
 		content = append(content, []byte("\n")...)
 		n, err := s.file.Write(content)
